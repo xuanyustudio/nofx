@@ -185,10 +185,25 @@ func fetchMarketDataForContext(ctx *Context) error {
 		// 持仓价值 = 持仓量 × 当前价格
 		// 但现有持仓必须保留（需要决策是否平仓）
 		// 💡 OI 門檻配置：用戶可根據風險偏好調整
-		const minOIThresholdMillions = 15.0 // 可調整：15M(保守) / 10M(平衡) / 8M(寬鬆) / 5M(激進)
+		const minOIThresholdMillions = 5.0 // 可調整：15M(保守) / 10M(平衡) / 8M(寬鬆) / 5M(激進)
+		
+		// 主流币种白名单（豁免 OI 检查）
+		mainStreamCoins := map[string]bool{
+			"BTCUSDT":  true,
+			"ETHUSDT":  true,
+			"BNBUSDT":  true,
+			"SOLUSDT":  true,
+			"XRPUSDT":  true,
+			"DOGEUSDT": true,
+			"ADAUSDT":  true,
+			"HYPEUSDT": true,
+		}
 
 		isExistingPosition := positionSymbols[symbol]
-		if !isExistingPosition && data.OpenInterest != nil && data.CurrentPrice > 0 {
+		isMainStream := mainStreamCoins[symbol]
+		
+		// 只对非主流币种且无持仓的币种进行 OI 检查
+		if !isExistingPosition && !isMainStream && data.OpenInterest != nil && data.CurrentPrice > 0 {
 			// 计算持仓价值（USD）= 持仓量 × 当前价格
 			oiValue := data.OpenInterest.Latest * data.CurrentPrice
 			oiValueInMillions := oiValue / 1_000_000 // 转换为百万美元单位
