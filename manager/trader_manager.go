@@ -441,6 +441,60 @@ func (tm *TraderManager) StartAll() {
 	}
 }
 
+// StartRunningTradersFromDatabase 启动数据库中标记为运行状态的交易员
+func (tm *TraderManager) StartRunningTradersFromDatabase(database *config.Database) error {
+	// 获取所有用户
+	userIDs, err := database.GetAllUsers()
+	if err != nil {
+		return fmt.Errorf("获取用户列表失败: %w", err)
+	}
+
+	startCount := 0
+	for _, userID := range userIDs {
+		// 获取每个用户的交易员
+		traders, err := database.GetTraders(userID)
+		if err != nil {
+			log.Printf("⚠️ 获取用户 %s 的交易员失败: %v", userID, err)
+			continue
+		}
+
+		// 检查并启动标记为运行状态的交易员
+		for _, traderCfg := range traders {
+			if traderCfg.IsRunning {
+				tm.mu.RLock()
+				t, exists := tm.traders[traderCfg.ID]
+				tm.mu.RUnlock()
+
+				if exists {
+					// 检查是否已经在运行
+					status := t.GetStatus()
+					if !status["is_running"].(bool) {
+						go func(trader *trader.AutoTrader, name string) {
+							log.Printf("▶️  启动交易员 %s (来自数据库配置)...", name)
+							if err := trader.Run(); err != nil {
+								log.Printf("❌ %s 运行错误: %v", name, err)
+							}
+						}(t, traderCfg.Name)
+						startCount++
+					} else {
+						log.Printf("ℹ️  交易员 %s 已在运行中", traderCfg.Name)
+					}
+				} else {
+					log.Printf("⚠️ 交易员 %s 标记为运行但未加载到内存", traderCfg.Name)
+				}
+			}
+		}
+	}
+
+	if startCount > 0 {
+		log.Printf("✓ 已启动 %d 个标记为运行状态的交易员", startCount)
+	} else {
+		log.Printf("ℹ️  没有需要启动的交易员（数据库中没有标记为运行状态的交易员）")
+	}
+
+	return nil
+}
+
 // StopAll 停止所有trader
 func (tm *TraderManager) StopAll() {
 	tm.mu.RLock()

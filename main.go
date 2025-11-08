@@ -346,12 +346,18 @@ func main() {
 	// 启动流行情数据 - 默认使用所有交易员设置的币种 如果没有设置币种 则优先使用系统默认
 	go market.NewWSMonitor(150).Start(database.GetCustomCoins())
 	//go market.NewWSMonitor(150).Start([]string{}) //这里是一个使用方式 传入空的话 则使用market市场的所有币种
+	
+	// 启动数据库中标记为运行状态的交易员
+	log.Println()
+	log.Println("🔍 检查数据库中标记为运行状态的交易员...")
+	if err := traderManager.StartRunningTradersFromDatabase(database); err != nil {
+		log.Printf("⚠️ 启动交易员失败: %v", err)
+	}
+	log.Println()
+
 	// 设置优雅退出
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-
-	// TODO: 启动数据库中配置为运行状态的交易员
-	// traderManager.StartAll()
 
 	// 等待退出信号
 	<-sigChan
